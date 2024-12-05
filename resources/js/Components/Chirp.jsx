@@ -2,29 +2,69 @@ import React, { useState } from "react";
 import Dropdown from "@/Components/Dropdown";
 import InputError from "@/Components/InputError";
 import PrimaryButton from "@/Components/PrimaryButton";
-
+import { CKEditor } from "@ckeditor/ckeditor5-react";
+import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-// tambahkan juga ini
 import { useForm, usePage } from "@inertiajs/react";
 
 dayjs.extend(relativeTime);
 
 export default function Chirp({ chirp }) {
-    // tambahkan ini
     const { auth } = usePage().props;
 
     const [editing, setEditing] = useState(false);
 
     const { data, setData, patch, clearErrors, reset, errors } = useForm({
         message: chirp.message,
+        media: null,
     });
 
     const submit = (e) => {
         e.preventDefault();
+        console.log("Data being sent:", data);
+        const formData = new FormData();
+        formData.append("message", data.message);
+
+        if (data.media) {
+            formData.append("media", data.media);
+        }
+
         patch(route("chirps.update", chirp.id), {
+            data: formData,
+            forceFormData: true,
             onSuccess: () => setEditing(false),
+            onError: (errors) => {
+                console.error("Errors:", errors);
+            },
         });
+        
+    };
+
+    const renderMedia = (chirp) => {
+        if (!chirp.media_path) return null;
+
+        const mediaType = chirp.media_type.split("/")[0];
+        const mediaUrl = `/storage/${chirp.media_path}`;
+
+        return (
+            <div className="mt-2">
+                {mediaType === "image" && (
+                    <img
+                        src={mediaUrl}
+                        alt="Chirp Media"
+                        className="max-w-full rounded-lg"
+                    />
+                )}
+                {mediaType === "video" && (
+                    <video
+                        src={mediaUrl}
+                        controls
+                        className="max-w-full rounded-lg"
+                    />
+                )}
+            </div>
+        );
     };
 
     return (
@@ -95,13 +135,46 @@ export default function Chirp({ chirp }) {
                 {/* menjadi ini */}
                 {editing ? (
                     <form onSubmit={submit}>
-                        <textarea
-                            value={data.message}
-                            onChange={(e) => setData("message", e.target.value)}
-                            className="mt-4 w-full text-gray-900 border-gray-300 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm"
-                        ></textarea>
-                        <InputError message={errors.message} className="mt-2" />
-                        <div className="space-x-2">
+                        <CKEditor
+                            editor={ClassicEditor}
+                            data={data.message}
+                            onChange={(event, editor) => {
+                                const data = editor.getData();
+                                setData("message", data);
+                            }}
+                            config={{
+                                placeholder: `What's on your mind?`,
+                                licenseKey:
+                                    "eyJhbGciOiJFUzI1NiJ9.eyJleHAiOjE3MzQ0Nzk5OTksImp0aSI6IjE5NzNhZThhLTk2NWQtNDlmMS1iNzlhLTQwZTk4ZTc2MjA1ZiIsInVzYWdlRW5kcG9pbnQiOiJodHRwczovL3Byb3h5LWV2ZW50LmNrZWRpdG9yLmNvbSIsImRpc3RyaWJ1dGlvbkNoYW5uZWwiOlsiY2xvdWQiLCJkcnVwYWwiLCJzaCJdLCJ3aGl0ZUxhYmVsIjp0cnVlLCJsaWNlbnNlVHlwZSI6InRyaWFsIiwiZmVhdHVyZXMiOlsiKiJdLCJ2YyI6IjUzZTc0MjJiIn0.j1g8QVvRH5TXgSwq9VOlzh1ZV0E86dWxcIMsIK69SMO1QiUZJQBv85XJUOpdVh0ipURjT6kXXlsRbkaz-8HgyQ",
+                                toolbar: [
+                                    "bold",
+                                    "italic",
+                                    "link",
+                                    "|",
+                                    "bulletedList",
+                                    "numberedList",
+                                    "|",
+                                    "undo",
+                                    "redo",
+                                ],
+                            }}
+                        />
+
+                        <div className="mt-4 flex justify-between items-center">
+                            <input
+                                type="file"
+                                accept="image/*,video/*"
+                                onChange={(e) => {
+                                    const data = e.target.files[0];
+                                    setData("media", data);
+                                }}
+                                className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                            />
+
+                            <InputError
+                                message={errors.media}
+                                className="mt-2"
+                            />
                             <PrimaryButton className="mt-4">Save</PrimaryButton>
                             <button
                                 className="mt-4"
@@ -114,11 +187,20 @@ export default function Chirp({ chirp }) {
                                 Cancel
                             </button>
                         </div>
+                        <div>
+                            {renderMedia(chirp)}
+                        </div>
                     </form>
                 ) : (
-                    <p className="mt-4 text-lg text-gray-900">
-                        {chirp.message}
-                    </p>
+                    <div>
+                        <div
+                            className="mt-4 text-lg text-gray-900"
+                            dangerouslySetInnerHTML={{
+                                __html: chirp.message,
+                            }}
+                        />
+                        {renderMedia(chirp)}
+                    </div>
                 )}
             </div>
         </div>

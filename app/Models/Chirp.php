@@ -13,16 +13,23 @@ class Chirp extends Model
  
     protected $fillable = [
         'message',
+        //tambahkan dua baris ini
+        'media_path', 
+        'media_type'
     ];
 
-    //tambahkan ini
     protected $dispatchesEvents = [
         'created' => ChirpCreated::class,
     ];
 
-    // tambahkan ini
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    // tambahkan ini
+    public function hashtags()
+    {
+        return $this->hasMany(Hashtag::class);
     }
 }
