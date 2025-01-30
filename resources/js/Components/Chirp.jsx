@@ -1,45 +1,20 @@
 import React, { useState } from "react";
 import Dropdown from "@/Components/Dropdown";
-import InputError from "@/Components/InputError";
-import PrimaryButton from "@/Components/PrimaryButton";
-import { CKEditor } from "@ckeditor/ckeditor5-react";
-import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useForm, usePage } from "@inertiajs/react";
+import { Inertia } from "@inertiajs/inertia";
+import EditChirp from "./EditChirp";
+import Report from "./Report";
 
 dayjs.extend(relativeTime);
 
 export default function Chirp({ chirp }) {
+    const { reset, clearErrors } = useForm();
     const { auth } = usePage().props;
-
+    
     const [editing, setEditing] = useState(false);
-
-    const { data, setData, patch, clearErrors, reset, errors } = useForm({
-        message: chirp.message,
-        media: null,
-    });
-
-    const submit = (e) => {
-        e.preventDefault();
-        console.log("Data being sent:", data);
-        const formData = new FormData();
-        formData.append("message", data.message);
-
-        if (data.media) {
-            formData.append("media", data.media);
-        }
-
-        patch(route("chirps.update", chirp.id), {
-            data: formData,
-            forceFormData: true,
-            onSuccess: () => setEditing(false),
-            onError: (errors) => {
-                console.error("Errors:", errors);
-            },
-        });
-        
-    };
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const renderMedia = (chirp) => {
         if (!chirp.media_path) return null;
@@ -48,7 +23,7 @@ export default function Chirp({ chirp }) {
         const mediaUrl = `/storage/${chirp.media_path}`;
 
         return (
-            <div className="mt-2">
+            <div className="mt-2 flex justify-center items-center">
                 {mediaType === "image" && (
                     <img
                         src={mediaUrl}
@@ -66,6 +41,7 @@ export default function Chirp({ chirp }) {
             </div>
         );
     };
+
 
     return (
         <div className="p-6 flex space-x-2">
@@ -85,17 +61,28 @@ export default function Chirp({ chirp }) {
             </svg>
             <div className="flex-1">
                 <div className="flex justify-between items-center">
-                    <div>
-                        <span className="text-gray-800">{chirp.user.name}</span>
-                        <small className="ml-2 text-sm text-gray-600">
-                            {dayjs(chirp.created_at).fromNow()}
-                        </small>
-                        {/* tambahkan ini */}
-                        {chirp.created_at !== chirp.updated_at && (
-                            <small className="text-sm text-gray-600">
-                                {" "}
-                                &middot; edited
+                    <div className="w-full justify-between flex">
+                        <div>
+                            <span className="text-gray-800">
+                                {chirp.user.name}
+                            </span>
+                            <small className="ml-2 text-sm text-gray-600">
+                                {dayjs(chirp.created_at).fromNow()}
                             </small>
+                            {/* tambahkan ini */}
+                            {chirp.created_at !== chirp.updated_at && (
+                                <small className="text-sm text-gray-600">
+                                    edited
+                                </small>
+                            )}
+                        </div>
+                        {chirp.user.id != auth.user.id && (
+                            <button
+                                className="ml-2 text-sm text-red-600"
+                                onClick={() => setIsModalOpen(true)}
+                            >
+                                Report
+                            </button>
                         )}
                     </div>
                     {/* dan juga ini */}
@@ -132,65 +119,21 @@ export default function Chirp({ chirp }) {
                         </Dropdown>
                     )}
                 </div>
-                {/* menjadi ini */}
                 {editing ? (
-                    <form onSubmit={submit}>
-                        <CKEditor
-                            editor={ClassicEditor}
-                            data={data.message}
-                            onChange={(event, editor) => {
-                                const data = editor.getData();
-                                setData("message", data);
+                    <div>
+                        <EditChirp chirp={chirp} />
+                        <button
+                            className="relative float-end -top-7"
+                            onClick={() => {
+                                setEditing(false);
+                                reset();
+                                clearErrors();
                             }}
-                            config={{
-                                placeholder: `What's on your mind?`,
-                                licenseKey:
-                                    "eyJhbGciOiJFUzI1NiJ9.eyJleHAiOjE3MzQ0Nzk5OTksImp0aSI6IjE5NzNhZThhLTk2NWQtNDlmMS1iNzlhLTQwZTk4ZTc2MjA1ZiIsInVzYWdlRW5kcG9pbnQiOiJodHRwczovL3Byb3h5LWV2ZW50LmNrZWRpdG9yLmNvbSIsImRpc3RyaWJ1dGlvbkNoYW5uZWwiOlsiY2xvdWQiLCJkcnVwYWwiLCJzaCJdLCJ3aGl0ZUxhYmVsIjp0cnVlLCJsaWNlbnNlVHlwZSI6InRyaWFsIiwiZmVhdHVyZXMiOlsiKiJdLCJ2YyI6IjUzZTc0MjJiIn0.j1g8QVvRH5TXgSwq9VOlzh1ZV0E86dWxcIMsIK69SMO1QiUZJQBv85XJUOpdVh0ipURjT6kXXlsRbkaz-8HgyQ",
-                                toolbar: [
-                                    "bold",
-                                    "italic",
-                                    "link",
-                                    "|",
-                                    "bulletedList",
-                                    "numberedList",
-                                    "|",
-                                    "undo",
-                                    "redo",
-                                ],
-                            }}
-                        />
-
-                        <div className="mt-4 flex justify-between items-center">
-                            <input
-                                type="file"
-                                accept="image/*,video/*"
-                                onChange={(e) => {
-                                    const data = e.target.files[0];
-                                    setData("media", data);
-                                }}
-                                className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                            />
-
-                            <InputError
-                                message={errors.media}
-                                className="mt-2"
-                            />
-                            <PrimaryButton className="mt-4">Save</PrimaryButton>
-                            <button
-                                className="mt-4"
-                                onClick={() => {
-                                    setEditing(false);
-                                    reset();
-                                    clearErrors();
-                                }}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                        <div>
-                            {renderMedia(chirp)}
-                        </div>
-                    </form>
+                        >
+                            Cancel
+                        </button>
+                        <div>{renderMedia(chirp)}</div>
+                    </div>
                 ) : (
                     <div>
                         <div
@@ -200,6 +143,19 @@ export default function Chirp({ chirp }) {
                             }}
                         />
                         {renderMedia(chirp)}
+                    </div>
+                )}
+
+                {isModalOpen && (
+                    <div className="border border-gray-300 rounded-md py-3 my-5">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="float-end px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md hover:bg-gray-50"
+                        >
+                            X
+                        </button>
+                        <Report chirpId={chirp} />
                     </div>
                 )}
             </div>

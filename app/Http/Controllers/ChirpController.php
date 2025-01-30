@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Chirp;
+use App\Models\Report;
 use Illuminate\Http\RedirectResponse; // tambahkan ini
 use Illuminate\Http\Request;
 
@@ -50,6 +51,7 @@ class ChirpController extends Controller
     // public function store(Request $request) // ubah ini
     public function store(Request $request) // : RedirectResponse // hapus : RedirectResponse
     {
+        // dd($request->all());
         $validated = $request->validate([
             'message' => 'required|string|max:2000',
             'media' => 'nullable|file|mimes:jpg,jpeg,png,mp4,wav|max:20480',
@@ -99,50 +101,46 @@ class ChirpController extends Controller
      * Update the specified resource in storage.
      */
     // public function update(Request $request, Chirp $chirp) // ubah ini
-    public function update(Request $request, Chirp $chirp)// menjadi ini
+    public function update(Request $request, Chirp $chirp) // : RedirectResponse
     {
+        dd($request->all());
 
         Gate::authorize('update', $chirp);
 
-        $validated = $request->validate([
-            'message' => 'required|string|max:255',
-            'media' => 'nullable|file|mimes:jpg,jpeg,png,mp4,wav|max:20480',
-            'hashtags' => 'nullable|string'
-        ]);
+        try {
+            $validated = $request->validate([
+                'message' => 'required|string|max:2000',
+                'media' => 'nullable|file|mimes:jpg,jpeg,png,mp4,wav|max:20480',
+                'hashtags' => 'nullable|string'
+            ]);
 
-        $mediaPath = null;
-        $mediaType = null;
+            $updateData = ['message' => $validated['message']];
 
-        if ($request->hasFile('media')) {
-            if ($chirp->media_path && Storage::exists($chirp->media_path)) {
-                Storage::delete($chirp->media_path);
+            if ($request->hasFile('media')) {
+                // Delete old media if exists
+                if ($chirp->media_path) {
+                    Storage::disk('public')->delete($chirp->media_path);
+                }
+
+                // Store new media
+                $file = $request->file('media');
+                $mediaPath = $file->store('chirps', 'public');
+
+                $updateData['media_path'] = $mediaPath;
+                $updateData['media_type'] = $file->getMimeType();
             }
 
-            $file = $request->file('media');
-            $mediaType = $file->getMimeType();
-            $mediaPath = $file->store('media', 'public');
+            $chirp->update($updateData);
 
-            $chirp->update([
-                'message' => $validated['message'],
-                'media_path' => $mediaPath,
-                'media_type' => $mediaType
-            ]);
-        } else {
-            $chirp->update([
-                'message' => $validated['message']
-            ]);
+            return redirect(route('chirps.index'));
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()
+                ->back()
+                ->withErrors(['error' => 'Failed to update the chirp. ' . $e->getMessage()]);
         }
-
-        $hashtags = json_decode($request->input('hashtags', '[]'), true);
-        foreach ($hashtags as $tag) {
-            $chirp->update(['name' => $tag]);
-        }
-
-        // $chirp->update($validated);
-        
-        return redirect(route('chirps.index'));
     }
-
     /**
      * Remove the specified resource from storage.
      */
@@ -152,7 +150,32 @@ class ChirpController extends Controller
         //
         Gate::authorize('delete', $chirp);
 
+        // dd($chirp->media_path);
+
+        if ($chirp->media_path) {
+            Storage::disk('public')->delete($chirp->media_path);
+        }
+
         $chirp->delete();
+
+        return redirect(route('chirps.index'));
+    }
+
+    public function report(Request $request)
+    {
+        // dd($request);
+        $validated = $request->validate([
+            'chirp_id' => 'nullable|exists:chirps,id',
+            'reported_id' => 'nullable|exists:users,id',
+            'reason' => 'required|string',
+        ]);
+
+        Report::create([
+            'reporter_id' => $request->user()->id,
+            'chirp_id' => $validated['chirp_id'] ?? null,
+            'reported_id' => $validated['reported_id'] ?? null,
+            'reason' => $validated['reason'],
+        ]);
 
         return redirect(route('chirps.index'));
     }
